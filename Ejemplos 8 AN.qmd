@@ -1,0 +1,685 @@
+---
+title: "Tarea 8. Series Temporales — Sector Tecnológico"
+author: "Mi nombre"
+lang: es
+format:
+  html:
+    grid:
+      body-width: 1200px
+---
+
+```{python}
+
+```
+```{python}
+#| echo: false
+
+import numpy as np
+import matplotlib.pyplot as plt
+import yfinance as yf
+import pandas as pd
+
+import matplotlib.ticker as ticker
+import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
+import calendar
+import statsmodels.api as sm
+import statsmodels.graphics.tsaplots as tsaplots
+import statsmodels.tsa.stattools as ts
+import statsmodels.tsa.seasonal as seasonal
+```
+
+## Valores financieros — Sector Tecnológico
+
+En esta sección se analizan las series temporales de los precios de cierre de tres empresas del sector tecnológico: **Apple (AAPL)**, **Microsoft (MSFT)** y **NVIDIA (NVDA)**. Se utilizan datos históricos diarios obtenidos con la biblioteca `yfinance` para el periodo comprendido entre el 1 de enero de 2020 y el 31 de diciembre de 2025.
+
+El objetivo es visualizar la evolución de los precios de estas acciones, comparar su desempeño e identificar tendencias, patrones estacionales y componentes de ruido mediante la descomposición de series temporales.
+
+```{python}
+#| code-fold: true
+
+tickers = ["AAPL", "MSFT", "NVDA"]
+start_date = "2020-01-01"
+end_date   = "2025-12-31"
+
+df_yf = yf.download(tickers, start=start_date, end=end_date, interval="1d")["Close"]
+
+print(type(df_yf))
+print(df_yf.columns.tolist())
+print(df_yf.head(3))
+```
+
+**Gráfica de los precios de las acciones**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+fig = go.Figure()
+for ticker in tickers:
+    fig.add_trace(go.Scatter(x=df_yf.index, y=df_yf[ticker], name=ticker))
+fig.update_layout(
+    title='Precios de cierre — AAPL, MSFT, NVDA (2020–2025)',
+    xaxis_title='Fecha',
+    yaxis_title='Precio (USD)',
+    legend_title_text='Acciones',
+    hovermode='x unified'
+)
+fig.update_xaxes(rangeslider_visible=True, gridcolor='rgba(138, 132, 132, 0.77)')
+fig.update_yaxes(gridcolor='rgba(138, 132, 132, 0.77)')
+fig.show()
+```
+
+---
+
+## Apple (AAPL)
+
+**Candlestick de AAPL**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+df_aapl_ohlc = yf.download("AAPL", start='2025-11-01', end='2025-12-31', interval="1d")
+aapl_ohlc = df_aapl_ohlc.xs("AAPL", level=1, axis=1)
+
+fig = go.Figure(data=[go.Candlestick(
+    x=aapl_ohlc.index,
+    open=aapl_ohlc['Open'],
+    high=aapl_ohlc['High'],
+    low=aapl_ohlc['Low'],
+    close=aapl_ohlc['Close']
+)])
+fig.update_layout(title='Candlestick AAPL (Nov–Dic 2025)', xaxis_title='Fecha', yaxis_title='Precio (USD)')
+fig.update_xaxes(rangeslider_visible=True, gridcolor='rgba(138, 132, 132, 0.77)')
+fig.update_yaxes(gridcolor='rgba(138, 132, 132, 0.77)')
+fig.show()
+```
+
+**Resumen estadístico de AAPL**
+
+```{python}
+#| code-fold: true
+
+aapl_ts = df_yf["AAPL"].dropna()
+print(aapl_ts.info())
+print(f"Fecha de inicio: {aapl_ts.index.min()}")
+print(f"Fecha de fin:    {aapl_ts.index.max()}")
+print("------")
+print("Estadísticas descriptivas de AAPL:")
+print(aapl_ts.describe())
+```
+
+**Comparación anual de AAPL**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+aapl_df = aapl_ts.reset_index()
+aapl_df['Año']        = aapl_df['Date'].dt.year
+aapl_df['Mes']        = aapl_df['Date'].dt.month
+aapl_df['Nombre_mes'] = aapl_df['Date'].dt.strftime('%b')
+aapl_df['Dia_año']    = aapl_df['Date'].dt.dayofyear
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=aapl_df, x='Nombre_mes', y='AAPL', hue='Año', marker='o', palette='tab10')
+plt.title('Comparación Anual de AAPL (Mensual)')
+plt.xlabel('Mes')
+plt.ylabel('Precio (USD)')
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(alpha=0.3)
+plt.show()
+```
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=aapl_df, x='Dia_año', y='AAPL', hue='Año', palette='tab10', errorbar=None)
+
+meses_dias    = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+meses_nombres = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+plt.xticks(ticks=meses_dias, labels=meses_nombres)
+
+plt.title('Comparación Anual de AAPL (Diaria)')
+plt.xlabel('Mes')
+plt.ylabel('Precio (USD)')
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+**Boxplot trimestral de AAPL**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+aapl_df['Trimestre']    = aapl_df['Date'].dt.to_period('Q')
+aapl_df['Año_Trimestre'] = aapl_df['Año'].astype(str) + '-Q' + aapl_df['Trimestre'].dt.quarter.astype(str)
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(data=aapl_df, x='Año_Trimestre', y='AAPL', hue='Año', palette='Paired')
+plt.title('Boxplot Trimestral de AAPL')
+plt.xlabel('Año-Trimestre')
+plt.ylabel('Precio (USD)')
+plt.xticks(rotation=45)
+plt.grid(alpha=0.3)
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.show()
+```
+
+**Heatmap de AAPL**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+aapl_df['Mes-dia'] = aapl_df['Date'].dt.strftime('%b-%d')
+
+heatmap_aapl = aapl_df.pivot_table(index='Mes-dia', columns='Año', values='AAPL')
+orden_aapl = (aapl_df.drop_duplicates('Mes-dia').sort_values('Dia_año')['Mes-dia'].tolist())
+heatmap_aapl = heatmap_aapl.reindex(orden_aapl).ffill().bfill()
+
+plt.figure(figsize=(12, 8))
+sns.heatmap(heatmap_aapl, annot=False, cmap='Spectral', linewidths=0, linecolor='none')
+plt.title('Heatmap de AAPL por Fecha y Año')
+plt.xlabel('Año')
+plt.ylabel('Fecha')
+plt.tight_layout()
+plt.show()
+```
+
+**Superficie de AAPL**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+Z = heatmap_aapl.values
+X = heatmap_aapl.columns.astype(str)
+Y = heatmap_aapl.index
+
+fig = go.Figure(data=[go.Surface(
+    z=Z, x=X, y=Y,
+    contours=dict(
+        x=dict(show=True, color="white", width=2),
+        y=dict(show=True, color="white", width=2)
+    ),
+    colorscale='Spectral'
+)])
+fig.update_layout(
+    title='Superficie de AAPL',
+    scene=dict(xaxis_title='Año', yaxis_title='Fecha', zaxis_title='Precio (USD)'),
+    autosize=True, height=600
+)
+fig.show()
+```
+
+**Descomposición aditiva de AAPL**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+#| fig-cap: "Descomposición aditiva de la serie temporal de AAPL"
+
+decomp_add_aapl = seasonal.seasonal_decompose(aapl_ts, model='additive', period=252)
+
+plt.figure(figsize=(12, 8))
+plt.subplot(4,1,1)
+plt.plot(aapl_ts, color='blue')
+plt.title('Serie Temporal Original')
+
+plt.subplot(4,1,2)
+plt.plot(decomp_add_aapl.trend, color='orange')
+plt.title('Tendencia')
+
+plt.subplot(4,1,3)
+plt.plot(decomp_add_aapl.seasonal, color='green')
+plt.title('Estacionalidad')
+
+plt.subplot(4,1,4)
+plt.plot(decomp_add_aapl.resid, color='red')
+plt.title('Ruido')
+plt.tight_layout()
+plt.show()
+```
+
+**Descomposición multiplicativa de AAPL**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+#| fig-cap: "Descomposición multiplicativa de la serie temporal de AAPL"
+
+decomp_mul_aapl = seasonal.seasonal_decompose(aapl_ts, model='multiplicative', period=252)
+
+plt.figure(figsize=(12, 8))
+plt.subplot(4,1,1)
+plt.plot(aapl_ts, color='blue')
+plt.title('Serie Temporal Original')
+
+plt.subplot(4,1,2)
+plt.plot(decomp_mul_aapl.trend, color='orange')
+plt.title('Tendencia')
+
+plt.subplot(4,1,3)
+plt.plot(decomp_mul_aapl.seasonal, color='green')
+plt.title('Estacionalidad')
+
+plt.subplot(4,1,4)
+plt.plot(decomp_mul_aapl.resid, color='red')
+plt.title('Ruido')
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+## Microsoft (MSFT)
+
+**Candlestick de MSFT**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+df_msft_ohlc = yf.download("MSFT", start='2025-11-01', end='2025-12-31', interval="1d")
+msft_ohlc = df_msft_ohlc.xs("MSFT", level=1, axis=1)
+
+fig = go.Figure(data=[go.Candlestick(
+    x=msft_ohlc.index,
+    open=msft_ohlc['Open'],
+    high=msft_ohlc['High'],
+    low=msft_ohlc['Low'],
+    close=msft_ohlc['Close']
+)])
+fig.update_layout(title='Candlestick MSFT (Nov–Dic 2025)', xaxis_title='Fecha', yaxis_title='Precio (USD)')
+fig.update_xaxes(rangeslider_visible=True, gridcolor='rgba(138, 132, 132, 0.77)')
+fig.update_yaxes(gridcolor='rgba(138, 132, 132, 0.77)')
+fig.show()
+```
+
+**Resumen estadístico de MSFT**
+
+```{python}
+#| code-fold: true
+
+msft_ts = df_yf["MSFT"].dropna()
+print(msft_ts.info())
+print(f"Fecha de inicio: {msft_ts.index.min()}")
+print(f"Fecha de fin:    {msft_ts.index.max()}")
+print("------")
+print("Estadísticas descriptivas de MSFT:")
+print(msft_ts.describe())
+```
+
+**Comparación anual de MSFT**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+msft_df = msft_ts.reset_index()
+msft_df['Año']        = msft_df['Date'].dt.year
+msft_df['Mes']        = msft_df['Date'].dt.month
+msft_df['Nombre_mes'] = msft_df['Date'].dt.strftime('%b')
+msft_df['Dia_año']    = msft_df['Date'].dt.dayofyear
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=msft_df, x='Nombre_mes', y='MSFT', hue='Año', marker='o', palette='tab10')
+plt.title('Comparación Anual de MSFT (Mensual)')
+plt.xlabel('Mes')
+plt.ylabel('Precio (USD)')
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(alpha=0.3)
+plt.show()
+```
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=msft_df, x='Dia_año', y='MSFT', hue='Año', palette='tab10', errorbar=None)
+plt.xticks(ticks=meses_dias, labels=meses_nombres)
+plt.title('Comparación Anual de MSFT (Diaria)')
+plt.xlabel('Mes')
+plt.ylabel('Precio (USD)')
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+**Boxplot trimestral de MSFT**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+msft_df['Trimestre']     = msft_df['Date'].dt.to_period('Q')
+msft_df['Año_Trimestre'] = msft_df['Año'].astype(str) + '-Q' + msft_df['Trimestre'].dt.quarter.astype(str)
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(data=msft_df, x='Año_Trimestre', y='MSFT', hue='Año', palette='Paired')
+plt.title('Boxplot Trimestral de MSFT')
+plt.xlabel('Año-Trimestre')
+plt.ylabel('Precio (USD)')
+plt.xticks(rotation=45)
+plt.grid(alpha=0.3)
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.show()
+```
+
+**Heatmap de MSFT**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+msft_df['Mes-dia'] = msft_df['Date'].dt.strftime('%b-%d')
+
+heatmap_msft = msft_df.pivot_table(index='Mes-dia', columns='Año', values='MSFT')
+orden_msft = (msft_df.drop_duplicates('Mes-dia').sort_values('Dia_año')['Mes-dia'].tolist())
+heatmap_msft = heatmap_msft.reindex(orden_msft).ffill().bfill()
+
+plt.figure(figsize=(12, 8))
+sns.heatmap(heatmap_msft, annot=False, cmap='Spectral', linewidths=0, linecolor='none')
+plt.title('Heatmap de MSFT por Fecha y Año')
+plt.xlabel('Año')
+plt.ylabel('Fecha')
+plt.tight_layout()
+plt.show()
+```
+
+**Superficie de MSFT**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+Z = heatmap_msft.values
+X = heatmap_msft.columns.astype(str)
+Y = heatmap_msft.index
+
+fig = go.Figure(data=[go.Surface(
+    z=Z, x=X, y=Y,
+    contours=dict(
+        x=dict(show=True, color="white", width=2),
+        y=dict(show=True, color="white", width=2)
+    ),
+    colorscale='Spectral'
+)])
+fig.update_layout(
+    title='Superficie de MSFT',
+    scene=dict(xaxis_title='Año', yaxis_title='Fecha', zaxis_title='Precio (USD)'),
+    autosize=True, height=600
+)
+fig.show()
+```
+
+**Descomposición aditiva de MSFT**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+#| fig-cap: "Descomposición aditiva de la serie temporal de MSFT"
+
+decomp_add_msft = seasonal.seasonal_decompose(msft_ts, model='additive', period=252)
+
+plt.figure(figsize=(12, 8))
+plt.subplot(4,1,1)
+plt.plot(msft_ts, color='blue')
+plt.title('Serie Temporal Original')
+
+plt.subplot(4,1,2)
+plt.plot(decomp_add_msft.trend, color='orange')
+plt.title('Tendencia')
+
+plt.subplot(4,1,3)
+plt.plot(decomp_add_msft.seasonal, color='green')
+plt.title('Estacionalidad')
+
+plt.subplot(4,1,4)
+plt.plot(decomp_add_msft.resid, color='red')
+plt.title('Ruido')
+plt.tight_layout()
+plt.show()
+```
+
+**Descomposición multiplicativa de MSFT**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+#| fig-cap: "Descomposición multiplicativa de la serie temporal de MSFT"
+
+decomp_mul_msft = seasonal.seasonal_decompose(msft_ts, model='multiplicative', period=252)
+
+plt.figure(figsize=(12, 8))
+plt.subplot(4,1,1)
+plt.plot(msft_ts, color='blue')
+plt.title('Serie Temporal Original')
+
+plt.subplot(4,1,2)
+plt.plot(decomp_mul_msft.trend, color='orange')
+plt.title('Tendencia')
+
+plt.subplot(4,1,3)
+plt.plot(decomp_mul_msft.seasonal, color='green')
+plt.title('Estacionalidad')
+
+plt.subplot(4,1,4)
+plt.plot(decomp_mul_msft.resid, color='red')
+plt.title('Ruido')
+plt.tight_layout()
+plt.show()
+```
+
+---
+
+## NVIDIA (NVDA)
+
+**Candlestick de NVDA**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+df_nvda_ohlc = yf.download("NVDA", start='2025-11-01', end='2025-12-31', interval="1d")
+nvda_ohlc = df_nvda_ohlc.xs("NVDA", level=1, axis=1)
+
+fig = go.Figure(data=[go.Candlestick(
+    x=nvda_ohlc.index,
+    open=nvda_ohlc['Open'],
+    high=nvda_ohlc['High'],
+    low=nvda_ohlc['Low'],
+    close=nvda_ohlc['Close']
+)])
+fig.update_layout(title='Candlestick NVDA (Nov–Dic 2025)', xaxis_title='Fecha', yaxis_title='Precio (USD)')
+fig.update_xaxes(rangeslider_visible=True, gridcolor='rgba(138, 132, 132, 0.77)')
+fig.update_yaxes(gridcolor='rgba(138, 132, 132, 0.77)')
+fig.show()
+```
+
+**Resumen estadístico de NVDA**
+
+```{python}
+#| code-fold: true
+
+nvda_ts = df_yf["NVDA"].dropna()
+print(nvda_ts.info())
+print(f"Fecha de inicio: {nvda_ts.index.min()}")
+print(f"Fecha de fin:    {nvda_ts.index.max()}")
+print("------")
+print("Estadísticas descriptivas de NVDA:")
+print(nvda_ts.describe())
+```
+
+**Comparación anual de NVDA**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+nvda_df = nvda_ts.reset_index()
+nvda_df['Año']        = nvda_df['Date'].dt.year
+nvda_df['Mes']        = nvda_df['Date'].dt.month
+nvda_df['Nombre_mes'] = nvda_df['Date'].dt.strftime('%b')
+nvda_df['Dia_año']    = nvda_df['Date'].dt.dayofyear
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=nvda_df, x='Nombre_mes', y='NVDA', hue='Año', marker='o', palette='tab10')
+plt.title('Comparación Anual de NVDA (Mensual)')
+plt.xlabel('Mes')
+plt.ylabel('Precio (USD)')
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(alpha=0.3)
+plt.show()
+```
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=nvda_df, x='Dia_año', y='NVDA', hue='Año', palette='tab10', errorbar=None)
+plt.xticks(ticks=meses_dias, labels=meses_nombres)
+plt.title('Comparación Anual de NVDA (Diaria)')
+plt.xlabel('Mes')
+plt.ylabel('Precio (USD)')
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+**Boxplot trimestral de NVDA**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+nvda_df['Trimestre']     = nvda_df['Date'].dt.to_period('Q')
+nvda_df['Año_Trimestre'] = nvda_df['Año'].astype(str) + '-Q' + nvda_df['Trimestre'].dt.quarter.astype(str)
+
+plt.figure(figsize=(12, 6))
+sns.boxplot(data=nvda_df, x='Año_Trimestre', y='NVDA', hue='Año', palette='Paired')
+plt.title('Boxplot Trimestral de NVDA')
+plt.xlabel('Año-Trimestre')
+plt.ylabel('Precio (USD)')
+plt.xticks(rotation=45)
+plt.grid(alpha=0.3)
+plt.legend(title='Año', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.show()
+```
+
+**Heatmap de NVDA**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+nvda_df['Mes-dia'] = nvda_df['Date'].dt.strftime('%b-%d')
+
+heatmap_nvda = nvda_df.pivot_table(index='Mes-dia', columns='Año', values='NVDA')
+orden_nvda = (nvda_df.drop_duplicates('Mes-dia').sort_values('Dia_año')['Mes-dia'].tolist())
+heatmap_nvda = heatmap_nvda.reindex(orden_nvda).ffill().bfill()
+
+plt.figure(figsize=(12, 8))
+sns.heatmap(heatmap_nvda, annot=False, cmap='Spectral', linewidths=0, linecolor='none')
+plt.title('Heatmap de NVDA por Fecha y Año')
+plt.xlabel('Año')
+plt.ylabel('Fecha')
+plt.tight_layout()
+plt.show()
+```
+
+**Superficie de NVDA**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+
+Z = heatmap_nvda.values
+X = heatmap_nvda.columns.astype(str)
+Y = heatmap_nvda.index
+
+fig = go.Figure(data=[go.Surface(
+    z=Z, x=X, y=Y,
+    contours=dict(
+        x=dict(show=True, color="white", width=2),
+        y=dict(show=True, color="white", width=2)
+    ),
+    colorscale='Spectral'
+)])
+fig.update_layout(
+    title='Superficie de NVDA',
+    scene=dict(xaxis_title='Año', yaxis_title='Fecha', zaxis_title='Precio (USD)'),
+    autosize=True, height=600
+)
+fig.show()
+```
+
+**Descomposición aditiva de NVDA**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+#| fig-cap: "Descomposición aditiva de la serie temporal de NVDA"
+
+decomp_add_nvda = seasonal.seasonal_decompose(nvda_ts, model='additive', period=252)
+
+plt.figure(figsize=(12, 8))
+plt.subplot(4,1,1)
+plt.plot(nvda_ts, color='blue')
+plt.title('Serie Temporal Original')
+
+plt.subplot(4,1,2)
+plt.plot(decomp_add_nvda.trend, color='orange')
+plt.title('Tendencia')
+
+plt.subplot(4,1,3)
+plt.plot(decomp_add_nvda.seasonal, color='green')
+plt.title('Estacionalidad')
+
+plt.subplot(4,1,4)
+plt.plot(decomp_add_nvda.resid, color='red')
+plt.title('Ruido')
+plt.tight_layout()
+plt.show()
+```
+
+**Descomposición multiplicativa de NVDA**
+
+```{python}
+#| code-fold: true
+#| fig-align: "center"
+#| fig-cap: "Descomposición multiplicativa de la serie temporal de NVDA"
+
+decomp_mul_nvda = seasonal.seasonal_decompose(nvda_ts, model='multiplicative', period=252)
+
+plt.figure(figsize=(12, 8))
+plt.subplot(4,1,1)
+plt.plot(nvda_ts, color='blue')
+plt.title('Serie Temporal Original')
+
+plt.subplot(4,1,2)
+plt.plot(decomp_mul_nvda.trend, color='orange')
+plt.title('Tendencia')
+
+plt.subplot(4,1,3)
+plt.plot(decomp_mul_nvda.seasonal, color='green')
+plt.title('Estacionalidad')
+
+plt.subplot(4,1,4)
+plt.plot(decomp_mul_nvda.resid, color='red')
+plt.title('Ruido')
+plt.tight_layout()
+plt.show()
+```
