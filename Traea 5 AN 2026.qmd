@@ -1,0 +1,857 @@
+---
+title: "Tarea 5. Diferenciación e integración numérica."
+author: "Mi nombre"
+format: 
+  html:
+    grid: 
+      body-width: 1000px
+editor: visual
+jupyter: python3
+---
+
+Importamos packages y funciones necesarias:
+
+```{python}
+#| code-fold: true
+
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+
+import plotly.graph_objects as go
+from scipy.differentiate import derivative
+import numdifftools as nd
+from scipy import integrate
+import pandas as pd
+```
+
+# Ejercicio 1.
+
+Para cada una de las siguientes funciones:
+
+-   Realiza la respectiva gráfica en el intervalo dado.
+
+-   Compara las gráficas de las derivadas aproximadas de la función `derivative` de `Scipy`, con dos tamaños de paso utilizando la función `nd.Derivative` (con `order =2` y `order = 4`, con las opciones de `method`: `forward`, `backward`, `central`) y la derivada *exacta* en tal intervalo.
+
+-   Compara las gráficas de las segundas derivadas aproximadas con dos tamaños de paso utilizando la función `nd.Derivative` y la segunda derivada *exacta* en tal intervalo.
+
+-   Realiza las gráficas de los errores absolutos en cada caso.
+
+## a) $f(x)=e^{2x}-\cos 2x$, $x\in [0,2]$
+
+```{python}
+#| code-fold: true
+
+# Función y derivadas exactas
+f_a   = lambda x: np.exp(2*x) - np.cos(2*x)
+df_a  = lambda x: 2*np.exp(2*x) + 2*np.sin(2*x)
+d2f_a = lambda x: 4*np.exp(2*x) + 4*np.cos(2*x)
+
+x_a = np.linspace(0, 2, 300)
+
+# Gráfica de la función
+plt.figure(figsize=(8, 4))
+plt.plot(x_a, f_a(x_a), color='royalblue', lw=2)
+plt.title(r'$f(x) = e^{2x} - \cos 2x$', fontsize=13)
+plt.xlabel('x'); plt.ylabel('f(x)')
+plt.grid(); plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+# ── Primera derivada ──
+methods = ['forward', 'backward', 'central']
+colors  = ['tomato', 'seagreen', 'darkorange']
+steps   = [1e-3, 1e-5]
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    ax.plot(x_a, df_a(x_a), 'k-', lw=2, label='Exacta')
+    # scipy derivative
+    d_scipy = derivative(f_a, x_a).df
+    ax.plot(x_a, d_scipy, 'b--', lw=1.5, label='scipy derivative')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d_nd = nd.Derivative(f_a, step=h, method=met, order=order)(x_a)
+            ax.plot(x_a, d_nd, color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Primera derivada  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=e^{2x}-\cos 2x$ — Primera derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+# ── Error absoluto — primera derivada ──
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    d_scipy = derivative(f_a, x_a).df
+    ax.plot(x_a, np.abs(d_scipy - df_a(x_a)), 'b--', lw=1.5, label='scipy')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d_nd = nd.Derivative(f_a, step=h, method=met, order=order)(x_a)
+            ax.plot(x_a, np.abs(d_nd - df_a(x_a)), color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Error absoluto 1ª deriv.  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=e^{2x}-\cos 2x$ — Error absoluto primera derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+# ── Segunda derivada ──
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    ax.plot(x_a, d2f_a(x_a), 'k-', lw=2, label='Exacta')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d2_nd = nd.Derivative(f_a, step=h, n=2, method=met, order=order)(x_a)
+            ax.plot(x_a, d2_nd, color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Segunda derivada  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=e^{2x}-\cos 2x$ — Segunda derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+# ── Error absoluto — segunda derivada ──
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d2_nd = nd.Derivative(f_a, step=h, n=2, method=met, order=order)(x_a)
+            ax.plot(x_a, np.abs(d2_nd - d2f_a(x_a)), color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Error absoluto 2ª deriv.  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=e^{2x}-\cos 2x$ — Error absoluto segunda derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+## b) $f(x)=\log(x+2)-(x+1)^2$, $x\in [0,5]$
+
+```{python}
+#| code-fold: true
+
+f_b   = lambda x: np.log(x + 2) - (x + 1)**2
+df_b  = lambda x: 1/(x + 2) - 2*(x + 1)
+d2f_b = lambda x: -1/(x + 2)**2 - 2
+
+x_b = np.linspace(0, 5, 300)
+
+plt.figure(figsize=(8, 4))
+plt.plot(x_b, f_b(x_b), color='royalblue', lw=2)
+plt.title(r'$f(x) = \log(x+2)-(x+1)^2$', fontsize=13)
+plt.xlabel('x'); plt.ylabel('f(x)')
+plt.grid(); plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    ax.plot(x_b, df_b(x_b), 'k-', lw=2, label='Exacta')
+    d_scipy = derivative(f_b, x_b).df
+    ax.plot(x_b, d_scipy, 'b--', lw=1.5, label='scipy derivative')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d_nd = nd.Derivative(f_b, step=h, method=met, order=order)(x_b)
+            ax.plot(x_b, d_nd, color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Primera derivada  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=\log(x+2)-(x+1)^2$ — Primera derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    d_scipy = derivative(f_b, x_b).df
+    ax.plot(x_b, np.abs(d_scipy - df_b(x_b)), 'b--', lw=1.5, label='scipy')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d_nd = nd.Derivative(f_b, step=h, method=met, order=order)(x_b)
+            ax.plot(x_b, np.abs(d_nd - df_b(x_b)), color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Error absoluto 1ª deriv.  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=\log(x+2)-(x+1)^2$ — Error absoluto primera derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    ax.plot(x_b, d2f_b(x_b), 'k-', lw=2, label='Exacta')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d2_nd = nd.Derivative(f_b, step=h, n=2, method=met, order=order)(x_b)
+            ax.plot(x_b, d2_nd, color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Segunda derivada  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=\log(x+2)-(x+1)^2$ — Segunda derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d2_nd = nd.Derivative(f_b, step=h, n=2, method=met, order=order)(x_b)
+            ax.plot(x_b, np.abs(d2_nd - d2f_b(x_b)), color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Error absoluto 2ª deriv.  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=\log(x+2)-(x+1)^2$ — Error absoluto segunda derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+## c) $f(x)=\sqrt{x}\,\operatorname{sen}(x^2)$, $x\in [0,\pi]$
+
+```{python}
+#| code-fold: true
+
+f_c   = lambda x: np.sqrt(x) * np.sin(x**2)
+df_c  = lambda x: (np.sin(x**2) / (2*np.sqrt(np.where(x == 0, 1e-10, x)))
+                   + 2*x*np.sqrt(x)*np.cos(x**2))
+d2f_c = lambda x: (-(np.sin(x**2) / (4*(np.where(x==0,1e-10,x))**(3/2)))
+                   + 2*np.cos(x**2)/np.sqrt(np.where(x==0,1e-10,x))
+                   + 2*np.sqrt(x)*np.cos(x**2)
+                   - 4*x**2*np.sqrt(x)*np.sin(x**2)
+                   + 2*x/np.sqrt(np.where(x==0,1e-10,x))*np.cos(x**2))
+
+x_c = np.linspace(1e-6, np.pi, 300)
+
+plt.figure(figsize=(8, 4))
+plt.plot(x_c, f_c(x_c), color='royalblue', lw=2)
+plt.title(r'$f(x) = \sqrt{x}\,\sin(x^2)$', fontsize=13)
+plt.xlabel('x'); plt.ylabel('f(x)')
+plt.grid(); plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    ax.plot(x_c, df_c(x_c), 'k-', lw=2, label='Exacta')
+    d_scipy = derivative(f_c, x_c).df
+    ax.plot(x_c, d_scipy, 'b--', lw=1.5, label='scipy derivative')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d_nd = nd.Derivative(f_c, step=h, method=met, order=order)(x_c)
+            ax.plot(x_c, d_nd, color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Primera derivada  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=\sqrt{x}\sin(x^2)$ — Primera derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    d_scipy = derivative(f_c, x_c).df
+    ax.plot(x_c, np.abs(d_scipy - df_c(x_c)), 'b--', lw=1.5, label='scipy')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d_nd = nd.Derivative(f_c, step=h, method=met, order=order)(x_c)
+            ax.plot(x_c, np.abs(d_nd - df_c(x_c)), color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Error absoluto 1ª deriv.  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=\sqrt{x}\sin(x^2)$ — Error absoluto primera derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    ax.plot(x_c, d2f_c(x_c), 'k-', lw=2, label='Exacta')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d2_nd = nd.Derivative(f_c, step=h, n=2, method=met, order=order)(x_c)
+            ax.plot(x_c, d2_nd, color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Segunda derivada  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=\sqrt{x}\sin(x^2)$ — Segunda derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d2_nd = nd.Derivative(f_c, step=h, n=2, method=met, order=order)(x_c)
+            ax.plot(x_c, np.abs(d2_nd - d2f_c(x_c)), color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Error absoluto 2ª deriv.  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=\sqrt{x}\sin(x^2)$ — Error absoluto segunda derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+## d) $f(x)=(\cos 3x)^2-e^{2x}$, $x\in [0,\pi/2]$
+
+```{python}
+#| code-fold: true
+
+f_d   = lambda x: np.cos(3*x)**2 - np.exp(2*x)
+df_d  = lambda x: -6*np.cos(3*x)*np.sin(3*x) - 2*np.exp(2*x)
+d2f_d = lambda x: -18*(np.cos(3*x)**2 - np.sin(3*x)**2) - 4*np.exp(2*x)
+
+x_d = np.linspace(0, np.pi/2, 300)
+
+plt.figure(figsize=(8, 4))
+plt.plot(x_d, f_d(x_d), color='royalblue', lw=2)
+plt.title(r'$f(x) = (\cos 3x)^2 - e^{2x}$', fontsize=13)
+plt.xlabel('x'); plt.ylabel('f(x)')
+plt.grid(); plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    ax.plot(x_d, df_d(x_d), 'k-', lw=2, label='Exacta')
+    d_scipy = derivative(f_d, x_d).df
+    ax.plot(x_d, d_scipy, 'b--', lw=1.5, label='scipy derivative')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d_nd = nd.Derivative(f_d, step=h, method=met, order=order)(x_d)
+            ax.plot(x_d, d_nd, color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Primera derivada  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=(\cos 3x)^2-e^{2x}$ — Primera derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    d_scipy = derivative(f_d, x_d).df
+    ax.plot(x_d, np.abs(d_scipy - df_d(x_d)), 'b--', lw=1.5, label='scipy')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d_nd = nd.Derivative(f_d, step=h, method=met, order=order)(x_d)
+            ax.plot(x_d, np.abs(d_nd - df_d(x_d)), color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Error absoluto 1ª deriv.  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=(\cos 3x)^2-e^{2x}$ — Error absoluto primera derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    ax.plot(x_d, d2f_d(x_d), 'k-', lw=2, label='Exacta')
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d2_nd = nd.Derivative(f_d, step=h, n=2, method=met, order=order)(x_d)
+            ax.plot(x_d, d2_nd, color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Segunda derivada  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=(\cos 3x)^2-e^{2x}$ — Segunda derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+for ax, h in zip(axes, steps):
+    for met, col in zip(methods, colors):
+        for order, ls in zip([2, 4], ['-', '--']):
+            d2_nd = nd.Derivative(f_d, step=h, n=2, method=met, order=order)(x_d)
+            ax.plot(x_d, np.abs(d2_nd - d2f_d(x_d)), color=col, ls=ls, lw=1,
+                    label=f'nd {met} ord={order}')
+    ax.set_title(f'Error absoluto 2ª deriv.  h={h}')
+    ax.set_xlabel('x'); ax.legend(fontsize=7, ncol=2); ax.grid()
+plt.suptitle(r"$f(x)=(\cos 3x)^2-e^{2x}$ — Error absoluto segunda derivada", fontsize=13)
+plt.tight_layout(); plt.show()
+```
+
+# Ejercicio 2
+
+Se eligen los siguientes 3 indicadores económicos del INEGI: **Actividad económica**, **Tipo de cambio nominal** y **Reservas internacionales**. Para cada uno se grafica la serie temporal y su derivada numérica, lo que permite analizar la evolución e identificar cambios de tendencia a lo largo del tiempo.
+
+```{python}
+#| code-fold: true
+
+df = pd.read_excel("TIE_Inegi_long__1_.xlsx")
+df['Fecha'] = pd.to_datetime(df['Fecha'])
+df = df.dropna(subset=['Actividad_economica', 'Tipo_cambio_nominal', 'Reservas_internacionales'])
+
+indicadores = {
+    'Actividad Económica': 'Actividad_economica',
+    'Tipo de Cambio Nominal': 'Tipo_cambio_nominal',
+    'Reservas Internacionales': 'Reservas_internacionales'
+}
+
+for nombre, col in indicadores.items():
+    serie = df[col].values
+    fechas = df['Fecha'].values
+
+    # Derivada numérica con diferencias centrales
+    derivada = np.gradient(serie)
+
+    fig, axes = plt.subplots(2, 1, figsize=(12, 7), sharex=True)
+
+    axes[0].plot(fechas, serie, color='steelblue', lw=2)
+    axes[0].set_title(f'{nombre} — Serie temporal', fontsize=12)
+    axes[0].set_ylabel('Valor del indicador')
+    axes[0].grid()
+
+    axes[1].plot(fechas, derivada, color='tomato', lw=1.5)
+    axes[1].axhline(0, color='black', lw=0.8, ls='--')
+    axes[1].set_title(f'{nombre} — Derivada numérica (tasa de cambio)', fontsize=12)
+    axes[1].set_ylabel('Δ Indicador')
+    axes[1].set_xlabel('Fecha')
+    axes[1].grid()
+
+    plt.tight_layout()
+    plt.show()
+```
+
+**Análisis:**
+
+-   **Actividad Económica:** El índice muestra una tendencia de crecimiento sostenido desde 1993 hasta principios de 2020, con una caída drástica durante la pandemia (2020), visible como el mínimo más pronunciado en la derivada. La recuperación posterior es rápida pero sin alcanzar la tendencia pre-pandemia.
+
+-   **Tipo de Cambio Nominal:** Se observan periodos de relativa estabilidad intercalados con depreciaciones abruptas del peso (crisis 1994–1995, 2008, 2016 y 2020). La derivada resalta claramente estos episodios de volatilidad cambiaria.
+
+-   **Reservas Internacionales:** Presentan una acumulación casi continua desde 2003 hasta la fecha más reciente, con pequeñas correcciones en momentos de crisis. La derivada muestra que el ritmo de acumulación fue especialmente alto entre 2010 y 2015.
+
+# Ejercicio 3
+
+Calcular el valor exacto y las aproximaciones numéricas de la siguiente integral:
+
+$$\int_0^4 x^2 e^{-x}\, dx$$
+
+```{python}
+#| code-fold: true
+
+from scipy.integrate import quad, trapezoid, simpson
+from scipy.special import gamma
+
+# Valor exacto por integración por partes: 2 - 26*e^(-4)
+valor_exacto = 2 - 26*np.exp(-4)
+print(f"Valor exacto:  {valor_exacto:.10f}")
+
+f3 = lambda x: x**2 * np.exp(-x)
+a, b = 0, 4
+
+# scipy quad
+val_quad, err_quad = quad(f3, a, b)
+print(f"scipy quad:    {val_quad:.10f}  (error est. {err_quad:.2e})")
+
+# Método del trapecio
+for n in [10, 100, 1000]:
+    x_n = np.linspace(a, b, n+1)
+    val_trap = trapezoid(f3(x_n), x_n)
+    print(f"Trapecio n={n:4d}: {val_trap:.10f}  error = {abs(val_trap - valor_exacto):.2e}")
+
+# Método de Simpson
+for n in [10, 100, 1000]:
+    x_n = np.linspace(a, b, n+1)
+    val_simp = simpson(f3(x_n), x=x_n)
+    print(f"Simpson  n={n:4d}: {val_simp:.10f}  error = {abs(val_simp - valor_exacto):.2e}")
+```
+
+```{python}
+#| code-fold: true
+
+# Gráfica de la función con área sombreada
+x_plot = np.linspace(0, 4, 400)
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.plot(x_plot, f3(x_plot), 'royalblue', lw=2, label=r'$x^2 e^{-x}$')
+ax.fill_between(x_plot, f3(x_plot), alpha=0.3, color='royalblue')
+ax.set_title(r'$\int_0^4 x^2 e^{-x}\,dx$', fontsize=13)
+ax.set_xlabel('x'); ax.set_ylabel('f(x)')
+ax.legend(); ax.grid()
+plt.tight_layout(); plt.show()
+```
+
+# Ejercicio 4
+
+Aproximar las siguientes integrales con `integrate.quad` y con el método de Montecarlo.
+
+```{python}
+#| code-fold: true
+
+from scipy.integrate import quad
+import numpy as np
+import matplotlib.pyplot as plt
+
+rng = np.random.default_rng(42)
+N_mc = 500_000  # muestras Montecarlo
+
+def monte_carlo_finito(f, a, b, N=N_mc):
+    """Montecarlo para intervalo finito."""
+    u = rng.uniform(a, b, N)
+    return (b - a) * np.mean(f(u))
+
+def monte_carlo_semiinfinito(f, N=N_mc):
+    """Montecarlo para [0, ∞) via cambio t = x/(1-t)."""
+    t = rng.uniform(0, 1, N)
+    x = t / (1 - t)
+    jac = 1 / (1 - t)**2
+    return np.mean(f(x) * jac)
+```
+
+## a) $\int_0^1 e^{-x^2}\,dx$
+
+```{python}
+#| code-fold: true
+
+fa = lambda x: np.exp(-x**2)
+val_q, _ = quad(fa, 0, 1)
+val_mc   = monte_carlo_finito(fa, 0, 1)
+print(f"quad:       {val_q:.8f}")
+print(f"Montecarlo: {val_mc:.8f}")
+
+x_p = np.linspace(0, 1, 300)
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(x_p, fa(x_p), 'royalblue', lw=2)
+ax.fill_between(x_p, fa(x_p), alpha=0.3, color='royalblue')
+ax.set_title(r'$\int_0^1 e^{-x^2}\,dx$'); ax.grid()
+plt.tight_layout(); plt.show()
+```
+
+## b) $\int_0^\pi \operatorname{sen}(x^2)\,dx$
+
+```{python}
+#| code-fold: true
+
+fb = lambda x: np.sin(x**2)
+val_q, _ = quad(fb, 0, np.pi)
+val_mc   = monte_carlo_finito(fb, 0, np.pi)
+print(f"quad:       {val_q:.8f}")
+print(f"Montecarlo: {val_mc:.8f}")
+
+x_p = np.linspace(0, np.pi, 300)
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(x_p, fb(x_p), 'royalblue', lw=2)
+ax.fill_between(x_p, fb(x_p), alpha=0.3, color='royalblue', label='área')
+ax.fill_between(x_p, fb(x_p), where=(fb(x_p)<0), alpha=0.3, color='tomato', label='área negativa')
+ax.axhline(0, color='k', lw=0.8)
+ax.set_title(r'$\int_0^\pi \sin(x^2)\,dx$'); ax.legend(); ax.grid()
+plt.tight_layout(); plt.show()
+```
+
+## c) $\int_\pi^{3\pi} \frac{\operatorname{sen}(x)}{x}\,dx$
+
+```{python}
+#| code-fold: true
+
+fc = lambda x: np.sin(x)/x
+val_q, _ = quad(fc, np.pi, 3*np.pi)
+val_mc   = monte_carlo_finito(fc, np.pi, 3*np.pi)
+print(f"quad:       {val_q:.8f}")
+print(f"Montecarlo: {val_mc:.8f}")
+
+x_p = np.linspace(np.pi, 3*np.pi, 400)
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(x_p, fc(x_p), 'royalblue', lw=2)
+ax.fill_between(x_p, fc(x_p), alpha=0.3, color='royalblue', label='área')
+ax.fill_between(x_p, fc(x_p), where=(fc(x_p)<0), alpha=0.3, color='tomato', label='área negativa')
+ax.axhline(0, color='k', lw=0.8)
+ax.set_title(r'$\int_\pi^{3\pi} \frac{\sin(x)}{x}\,dx$'); ax.legend(); ax.grid()
+plt.tight_layout(); plt.show()
+```
+
+## d) $\int_0^\infty e^{-x^2}\cos(x)\,dx$
+
+```{python}
+#| code-fold: true
+
+fd = lambda x: np.exp(-x**2)*np.cos(x)
+val_q, _ = quad(fd, 0, np.inf)
+val_mc   = monte_carlo_semiinfinito(fd)
+print(f"quad:       {val_q:.8f}")
+print(f"Montecarlo: {val_mc:.8f}")
+
+x_p = np.linspace(0, 4, 400)
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(x_p, fd(x_p), 'royalblue', lw=2)
+ax.fill_between(x_p, fd(x_p), alpha=0.3, color='royalblue')
+ax.set_title(r'$\int_0^\infty e^{-x^2}\cos(x)\,dx$'); ax.grid()
+plt.tight_layout(); plt.show()
+```
+
+## e) $\int_0^1 x^x\,dx$
+
+```{python}
+#| code-fold: true
+
+fe = lambda x: x**x
+val_q, _ = quad(fe, 1e-10, 1)
+val_mc   = monte_carlo_finito(fe, 1e-10, 1)
+print(f"quad:       {val_q:.8f}")
+print(f"Montecarlo: {val_mc:.8f}")
+
+x_p = np.linspace(1e-4, 1, 300)
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(x_p, fe(x_p), 'royalblue', lw=2)
+ax.fill_between(x_p, fe(x_p), alpha=0.3, color='royalblue')
+ax.set_title(r'$\int_0^1 x^x\,dx$'); ax.grid()
+plt.tight_layout(); plt.show()
+```
+
+## f) $\int_1^5 e^{-x^2}x^3\,dx$
+
+```{python}
+#| code-fold: true
+
+ff = lambda x: np.exp(-x**2)*x**3
+val_q, _ = quad(ff, 1, 5)
+val_mc   = monte_carlo_finito(ff, 1, 5)
+print(f"quad:       {val_q:.8f}")
+print(f"Montecarlo: {val_mc:.8f}")
+
+x_p = np.linspace(1, 5, 300)
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(x_p, ff(x_p), 'royalblue', lw=2)
+ax.fill_between(x_p, ff(x_p), alpha=0.3, color='royalblue')
+ax.set_title(r'$\int_1^5 e^{-x^2}x^3\,dx$'); ax.grid()
+plt.tight_layout(); plt.show()
+```
+
+## g) $\int_0^\infty \frac{x}{e^x-1}\,dx$
+
+```{python}
+#| code-fold: true
+
+fg = lambda x: x / (np.exp(x) - 1 + 1e-300)
+val_q, _ = quad(fg, 1e-10, np.inf)
+val_mc   = monte_carlo_semiinfinito(fg)
+# Valor exacto: pi^2/6
+print(f"quad:          {val_q:.8f}")
+print(f"Montecarlo:    {val_mc:.8f}")
+print(f"Exacto pi^2/6: {np.pi**2/6:.8f}")
+
+x_p = np.linspace(1e-3, 8, 400)
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(x_p, fg(x_p), 'royalblue', lw=2)
+ax.fill_between(x_p, fg(x_p), alpha=0.3, color='royalblue')
+ax.set_title(r'$\int_0^\infty \frac{x}{e^x-1}\,dx$'); ax.grid()
+plt.tight_layout(); plt.show()
+```
+
+## h) $\int_0^1 \frac{1}{\sqrt{x^4+1}}\,dx$
+
+```{python}
+#| code-fold: true
+
+fh = lambda x: 1/np.sqrt(x**4 + 1)
+val_q, _ = quad(fh, 0, 1)
+val_mc   = monte_carlo_finito(fh, 0, 1)
+print(f"quad:       {val_q:.8f}")
+print(f"Montecarlo: {val_mc:.8f}")
+
+x_p = np.linspace(0, 1, 300)
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(x_p, fh(x_p), 'royalblue', lw=2)
+ax.fill_between(x_p, fh(x_p), alpha=0.3, color='royalblue')
+ax.set_title(r'$\int_0^1 \frac{1}{\sqrt{x^4+1}}\,dx$'); ax.grid()
+plt.tight_layout(); plt.show()
+```
+
+# Ejercicio 5
+
+Aproximar integrales dobles y triples.
+
+## a) $\int_{-1}^{1}\int_1^2 (3y^2-x^2+5)\,dx\,dy$ — con gráfica
+
+```{python}
+#| code-fold: true
+
+from scipy.integrate import dblquad, tplquad
+
+f5a = lambda x, y: 3*y**2 - x**2 + 5
+
+# Valor exacto
+val_exact_5a, _ = dblquad(f5a, -1, 1, 1, 2)
+print(f"dblquad: {val_exact_5a:.8f}")
+
+# Exacto analítico: integral interna = [3y^2*x - x^3/3 + 5x]_1^2 = 3y^2 + 36/3 - 5 + ... 
+# = 3y^2 + (2*3y^2 - 8/3 + 10) - (3y^2 - 1/3 + 5) = 3y^2 + 22/3
+# integral exterior = [y^3 + 22y/3]_{-1}^{1} = 2 + 44/3 = 50/3
+print(f"Exacto analítico: {50/3:.8f}")
+
+# Gráfica superficie
+x_g = np.linspace(1, 2, 50)
+y_g = np.linspace(-1, 1, 50)
+X, Y = np.meshgrid(x_g, y_g)
+Z = 3*Y**2 - X**2 + 5
+
+fig = go.Figure(data=[go.Surface(x=X, y=Y, z=Z, colorscale='Viridis')])
+fig.update_layout(title=r'f(x,y) = 3y²− x²+ 5',
+                  scene=dict(xaxis_title='x', yaxis_title='y', zaxis_title='f'),
+                  width=700, height=500)
+fig.show()
+```
+
+## b) $\int_{0}^{6}\int_1^5 \sqrt{x+4y}\,dx\,dy$
+
+```{python}
+#| code-fold: true
+
+f5b = lambda x, y: np.sqrt(x + 4*y)
+val_5b, _ = dblquad(f5b, 0, 6, 1, 5)
+print(f"dblquad: {val_5b:.8f}")
+```
+
+## c) $\int_{1}^{e}\int_0^{\log(x)} x^3\,dy\,dx$
+
+```{python}
+#| code-fold: true
+
+# Integral interna en y: x^3 * log(x)
+f5c_inner = lambda x: x**3 * np.log(x)
+val_5c, _ = quad(f5c_inner, 1, np.e)
+print(f"quad (equivalente): {val_5c:.8f}")
+
+# Con dblquad: dy va de 0 a log(x), dx de 1 a e
+val_5c_d, _ = dblquad(lambda y, x: x**3, 1, np.e, 0, lambda x: np.log(x))
+print(f"dblquad:            {val_5c_d:.8f}")
+```
+
+## d) $\iint_D 30y e^x\,dx\,dy$ — región $D$
+
+La región $D$ está acotada por $y = x/4$ (abajo) y $y = x$ (arriba) para $x \in [0,4]$.
+
+```{python}
+#| code-fold: true
+
+x_val = np.array([0, 4])
+y_val1 = np.array([0, 1])
+y_val2 = np.array([0, 4])
+
+plt.figure(figsize=(8, 6))
+plt.plot(x_val, y_val1)
+plt.plot(x_val, y_val2)
+plt.fill_between(x_val, y1=y_val1, y2=y_val2, color="firebrick", alpha=0.5)
+plt.grid()
+plt.show()
+```
+
+```{python}
+#| code-fold: true
+
+# Iteramos: x de 0 a 4, y de x/4 a x
+f5d = lambda y, x: 30*y*np.exp(x)
+val_5d, _ = dblquad(f5d, 0, 4, lambda x: x/4, lambda x: x)
+print(f"dblquad: {val_5d:.8f}")
+```
+
+## e) $\iiint_B z\,e^{x+y}\,dx\,dy\,dz$, $B=[0,1]^3$
+
+```{python}
+#| code-fold: true
+
+f5e = lambda z, y, x: z * np.exp(x + y)
+val_5e, _ = tplquad(f5e, 0, 1, 0, 1, 0, 1)
+
+# Exacto: int_0^1 z dz * (int_0^1 e^x dx)^2 = 1/2 * (e-1)^2
+exacto_5e = 0.5 * (np.e - 1)**2
+print(f"tplquad: {val_5e:.8f}")
+print(f"Exacto:  {exacto_5e:.8f}")
+```
+
+## f) $\int_0^1\int_0^x\int_0^y (y+xz)\,dz\,dy\,dx$
+
+```{python}
+#| code-fold: true
+
+f5f = lambda z, y, x: y + x*z
+val_5f, _ = tplquad(f5f, 0, 1,
+                    0, lambda x: x,
+                    0, lambda x, y: y)
+print(f"tplquad: {val_5f:.8f}")
+
+# Exacto analítico = 3/28
+print(f"Exacto:  {3/28:.8f}")
+```
+
+# Ejercicio 6
+
+Se eligen 5 distribuciones continuas de `scipy.stats`. Para cada una se grafica la PDF y se calcula la probabilidad de que la variable aleatoria tome un valor en un intervalo dado, comparando con el método `cdf`.
+
+```{python}
+#| code-fold: true
+
+from scipy import stats
+
+distribuciones = [
+    ('Normal',       stats.norm(loc=0, scale=1),       -1,  1),
+    ('Exponencial',  stats.expon(scale=2),               0,  3),
+    ('Beta(2,5)',     stats.beta(a=2, b=5),              0.2, 0.7),
+    ('Gamma(3,1)',    stats.gamma(a=3, scale=1),         1,  5),
+    ('t-Student(5)', stats.t(df=5),                    -2,  2),
+]
+
+for nombre, dist, a_iv, b_iv in distribuciones:
+    # Intervalo de graficación
+    x_lo, x_hi = dist.ppf(0.001), dist.ppf(0.999)
+    x_plt = np.linspace(x_lo, x_hi, 400)
+    pdf_vals = dist.pdf(x_plt)
+
+    # Probabilidad con integrate.quad sobre la PDF
+    prob_quad, _ = quad(dist.pdf, a_iv, b_iv)
+    # Probabilidad con cdf
+    prob_cdf = dist.cdf(b_iv) - dist.cdf(a_iv)
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(x_plt, pdf_vals, lw=2, color='steelblue', label='PDF')
+    x_fill = np.linspace(a_iv, b_iv, 300)
+    ax.fill_between(x_fill, dist.pdf(x_fill), alpha=0.4, color='tomato',
+                    label=f'P({a_iv}≤X≤{b_iv})')
+    ax.set_title(f'{nombre}  —  P({a_iv} ≤ X ≤ {b_iv})', fontsize=12)
+    ax.set_xlabel('x'); ax.set_ylabel('f(x)')
+    ax.legend()
+    ax.grid()
+
+    # Tabla de resultados en la figura
+    ax.text(0.98, 0.95,
+            f'quad:  {prob_quad:.6f}\ncdf:   {prob_cdf:.6f}',
+            transform=ax.transAxes, ha='right', va='top',
+            bbox=dict(boxstyle='round', fc='white', alpha=0.8), fontsize=10)
+    plt.tight_layout()
+    plt.show()
+
+    print(f"{nombre}: P({a_iv}≤X≤{b_iv})  quad={prob_quad:.8f}  cdf={prob_cdf:.8f}\n")
+```
